@@ -52,10 +52,11 @@ def rel_perm(fname):
         rel_perm_table[2].append(kr)
     return(rel_perm_table)
 
-def front_saturation(rel_perm_table,del_rho,v_macro,mu_g,mu_w):
+def front_saturation(rel_perm_table,perm,del_rho,v_macro,mu_g,mu_w):
     import math, numpy as np
     del_rho = del_rho*16.018
     v_macro = v_macro/(3600*24*3.28084)
+    perm = perm*9.8*(10**(-16))
     mu_g = mu_g*0.001
     mu_w = mu_w*0.001
     front_satn = [0 for i in range(2001)]
@@ -69,7 +70,7 @@ def front_saturation(rel_perm_table,del_rho,v_macro,mu_g,mu_w):
             if krg==0:
                 f_g=0
             else:
-                f_g = (1-krw*del_rho*9.8*d_sin_alpha/1000.0/(v_macro*mu_w))/(1+krw*mu_g/krg/mu_w)
+                f_g = (1-krw*perm*del_rho*9.8*d_sin_alpha/1000.0/(v_macro*mu_w))/(1+krw*mu_g/krg/mu_w)
             frac_flow[0].append(satn)
             frac_flow[1].append(f_g)
         dfg_dSg = [[],[]]
@@ -85,8 +86,13 @@ def front_saturation(rel_perm_table,del_rho,v_macro,mu_g,mu_w):
                 break
     return(front_satn)
 
-def BL_velocity(rel_perm_table,del_rho,v_macro,mu_g,mu_w,sin_alpha,sat,front_check,Sgr):
+def BL_velocity(rel_perm_table,perm,del_rho,v_macro,mu_g,mu_w,sin_alpha,sat,front_check,Sgr):
     import math
+    del_rho = del_rho*16.018
+    v_macro = v_macro/(3600*24*3.28084)
+    perm = perm*9.8*(10**(-16))
+    mu_g = mu_g*0.001
+    mu_w = mu_w*0.001
     frac_flow = [[],[]]
     if sat>0.99:
         sat=0.99
@@ -98,7 +104,7 @@ def BL_velocity(rel_perm_table,del_rho,v_macro,mu_g,mu_w,sin_alpha,sat,front_che
             f_g1=0
         else:
             krw = rel_perm_table[2][rel_perm_table[0].index(round(1-satn,3))-1]
-            f_g1 = (1-krw*del_rho*9.8*sin_alpha)/(1+krw*mu_g/krg/mu_w)
+            f_g1 = (1-krw*perm*del_rho*9.8*sin_alpha)/(1+krw*mu_g/krg/mu_w)
         slope = f_g1/(satn-Sgr)
     else:
         satn = sat+0.01
@@ -107,7 +113,7 @@ def BL_velocity(rel_perm_table,del_rho,v_macro,mu_g,mu_w,sin_alpha,sat,front_che
             f_g1=0
         else:
             krw = rel_perm_table[2][rel_perm_table[0].index(round(1-satn,3))-1]
-            f_g1 = (1-krw*del_rho*9.8*sin_alpha)/(1+krw*mu_g/krg/mu_w)
+            f_g1 = (1-krw*perm*del_rho*9.8*sin_alpha)/(1+krw*mu_g/krg/mu_w)
 
         satn = sat-0.01
         krg = rel_perm_table[1][rel_perm_table[0].index(round(satn,3))]
@@ -115,7 +121,7 @@ def BL_velocity(rel_perm_table,del_rho,v_macro,mu_g,mu_w,sin_alpha,sat,front_che
             f_g2=0
         else:
             krw = rel_perm_table[2][rel_perm_table[0].index(round(1-satn,3))-1]
-            f_g2 = (1-krw*del_rho*9.8*sin_alpha)/(1+krw*mu_g/krg/mu_w)
+            f_g2 = (1-krw*perm*del_rho*9.8*sin_alpha)/(1+krw*mu_g/krg/mu_w)
 
         slope = (f_g1-f_g2)/0.02
     return(slope)
@@ -354,7 +360,7 @@ for models in range(num_models):
         for j in range(NY):
             for k in range(NX):
                 temp1 = data_f.readline().split()
-                accomodation[i][j][k] = int(100*float(temp1[models]))
+                accomodation[i][j][k] = int(50*float(temp1[models]))
                 if accomodation[i][j][k]<1:
                     accomodation[i][j][k]=1
                 total_particles = total_particles + accomodation[i][j][k]
@@ -380,10 +386,11 @@ for models in range(num_models):
 
     # **************************** Front saturation *****************************
     front_sat = [[0] for i in range(3)]
-    front_sat[0] = front_saturation(rel_perms,co2_den-brine_den,v_macro_x,co2_visc,brine_visc)
-    front_sat[1] = front_saturation(rel_perms,co2_den-brine_den,v_macro_y,co2_visc,brine_visc)
-    front_sat[2] = front_saturation(rel_perms,co2_den-brine_den,v_macro_z,co2_visc,brine_visc)
-    print 'Done calculating from saturations'
+    mean_perm = np.mean(np.mean(np.mean(perms)))
+    front_sat[0] = front_saturation(rel_perms,mean_perm,co2_den-brine_den,v_macro_x,co2_visc,brine_visc)
+    front_sat[1] = front_saturation(rel_perms,mean_perm,co2_den-brine_den,v_macro_y,co2_visc,brine_visc)
+    front_sat[2] = front_saturation(rel_perms,mean_perm,co2_den-brine_den,v_macro_z,co2_visc,brine_visc)
+    print 'Done calculating front saturations'
 
     # ********************* Create Fw lookup table ****************************
     fg_lookup = [[[0 for i in range(2001)] for j in range(1001)] for k in range(3)]
@@ -395,46 +402,50 @@ for models in range(num_models):
                     front_check=1
                 else:
                     front_check=0
-                fg_lookup[0][gas_sat][1000+sin_alpha] = BL_velocity(rel_perms,brine_den-co2_den,v_macro_x,co2_visc,brine_visc,sin_alpha/1000.0,gas_sat/1000.0,front_check,Sgr)
+                fg_lookup[0][gas_sat][1000+sin_alpha] = BL_velocity(rel_perms,mean_perm,brine_den-co2_den,v_macro_x,co2_visc,brine_visc,sin_alpha/1000.0,gas_sat/1000.0,front_check,Sgr)
 
                 if (gas_sat/1000)<front_sat[1][int(sin_alpha)+1000]:
                     front_check=1
                 else:
                     front_check=0
-                fg_lookup[1][gas_sat][1000+sin_alpha] = BL_velocity(rel_perms,brine_den-co2_den,v_macro_y,co2_visc,brine_visc,sin_alpha/1000.0,gas_sat/1000.0,front_check,Sgr)
+                fg_lookup[1][gas_sat][1000+sin_alpha] = BL_velocity(rel_perms,mean_perm,brine_den-co2_den,v_macro_y,co2_visc,brine_visc,sin_alpha/1000.0,gas_sat/1000.0,front_check,Sgr)
 
                 if (gas_sat/1000)<front_sat[2][int(sin_alpha)+1000]:
                     front_check=1
                 else:
                     front_check=0
-                fg_lookup[2][gas_sat][1000+sin_alpha] = BL_velocity(rel_perms,brine_den-co2_den,v_macro_z,co2_visc,brine_visc,sin_alpha/1000.0,gas_sat/1000.0,front_check,Sgr)
+                fg_lookup[2][gas_sat][1000+sin_alpha] = BL_velocity(rel_perms,mean_perm,brine_den-co2_den,v_macro_z,co2_visc,brine_visc,sin_alpha/1000.0,gas_sat/1000.0,front_check,Sgr)
     print 'Done creating Fg lookup table in ', time.clock()-start_time2, ' secs.'
 
 
     # Starting walk for current model
     start_time2 = time.clock()
     for curr_time in range(total_days):
+#        print '******** Current time: ',curr_time +1, ' *****************'
         for particle in range(N_inj_rate):
             for inj in range(num_inj):
                 carbon_count[inj_z[inj]-1][inj_y[inj]-1][inj_x[inj]-1] = carbon_count[inj_z[inj]-1][inj_y[inj]-1][inj_x[inj]-1] + 1
 
             num_nonzero = np.where(np.array(carbon_count)/np.array(accomodation)>Sgr)
+#            print len(num_nonzero[0])
+
             for location in range(len(num_nonzero[0])):
                 x,y,z = num_nonzero[2][location], num_nonzero[1][location], num_nonzero[0][location]
                 go_back=1
+                check_passed = [[[0 for i in range(NX)] for j in range(NY)] for k in range(NZ)]
                 while (go_back==1):
                     Tr = [0 for i in range(7)]
+                    check_passed[z][y][x]=1
 
                     # ********************************** TRANSITION PROBABILITIES *******************************************
 
-                    # positive X-direction
                     if x!=NX-1:
                         satn = (float(carbon_count[z][y][x])/accomodation[z][y][x]+float(carbon_count[z][y][x+1])/accomodation[z][y][x+1])/2
                         if satn>0.999:
                             satn=0.999
                         avg_perm =(perms[z][y][x]*perms[z][y][x+1])**0.5
                         sin_alpha = round(math.sin(math.atan((depth[z][y][x]-depth[z][y][x+1])/dx)),3)
-                        if satn<Sgr:
+                        if satn<Sgr or check_passed[z][y][x+1]==1:
                             Tr[1] = 0
                         else:
                             velocity = fg_lookup[0][int(satn*1000)][int(sin_alpha*1000)+1000]
@@ -458,7 +469,7 @@ for models in range(num_models):
                             satn=0.999
                         avg_perm =(perms[z][y][x]*perms[z][y][x-1])**0.5
                         sin_alpha = round(math.sin(math.atan((depth[z][y][x]-depth[z][y][x-1])/dx)),3)
-                        if satn<Sgr:
+                        if satn<Sgr or check_passed[z][y][x-1]==1:
                             Tr[2] = 0
                         else:
                             velocity = fg_lookup[0][int(satn*1000)][int(sin_alpha*1000)+1000]
@@ -482,7 +493,7 @@ for models in range(num_models):
                             satn=0.999
                         avg_perm =(perms[z][y][x]*perms[z][y+1][x])**0.5
                         sin_alpha = round(math.sin(math.atan((depth[z][y][x]-depth[z][y+1][x])/dx)),3)
-                        if satn<Sgr:
+                        if satn<Sgr or check_passed[z][y+1][x]==1:
                             Tr[3] = 0
                         else:
                             velocity = fg_lookup[1][int(satn*1000)][int(sin_alpha*1000)+1000]
@@ -506,7 +517,7 @@ for models in range(num_models):
                             satn=0.999
                         avg_perm =(perms[z][y][x]*perms[z][y-1][x])**0.5
                         sin_alpha = round(math.sin(math.atan((depth[z][y][x]-depth[z][y-1][x])/dx)),3)
-                        if satn<Sgr:
+                        if satn<Sgr or check_passed[z][y-1][x]==1:
                             Tr[4] = 0
                         else:
                             velocity = fg_lookup[1][int(satn*1000)][int(sin_alpha*1000)+1000]
@@ -532,7 +543,7 @@ for models in range(num_models):
                             satn=0.999
                         avg_perm =(perms[z][y][x]*perms[z+1][y][x])**0.5
                         sin_alpha = round(math.sin(math.atan((depth[z][y][x]-depth[z+1][y][x])/dx)),3)
-                        if satn<Sgr:
+                        if satn<Sgr or check_passed[z+1][y][x]==1:
                             Tr[5] = 0
                         else:
                             velocity = fg_lookup[2][int(satn*1000)][int(sin_alpha*1000)+1000]
@@ -548,7 +559,7 @@ for models in range(num_models):
                             satn=0.999
                         avg_perm =(perms[z][y][x]*perms[z-1][y][x])**0.5
                         sin_alpha = round(math.sin(math.atan((depth[z][y][x]-depth[z-1][y][x])/dx)),3)
-                        if satn<Sgr:
+                        if satn<Sgr or check_passed[z-1][y][x]==1:
                             Tr[6] = 0
                         else:
                             velocity = fg_lookup[2][int(satn*1000)][int(sin_alpha*1000)+1000]
