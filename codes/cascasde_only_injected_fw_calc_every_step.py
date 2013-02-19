@@ -161,7 +161,16 @@ par_f = open(par_file,'r')
 temp1 = par_f.readline()
 temp2 = temp1.split('-')
 results_file = temp2[0].strip()
+if os.path.isdir('../results/'+results_file):
+    del_dir = raw_input('Results directory exists, replace? (y/n)')
+    if del_dir=='y':
+        import shutil
+        shutil.rmtree('../results/'+results_file)
+    else:
+        exit()
+
 os.mkdir('../results/' + results_file)
+p_write = open('../results/' + results_file +'/parameters.txt','w')
 del temp1, temp2
 
 # NX, NY, NZ
@@ -169,6 +178,7 @@ temp1 = par_f.readline()
 temp2 = temp1.split('-')
 temp3 = [int(item) for item in temp2[0].split()]
 NX,NY,NZ = temp3[0],temp3[1],temp3[2]
+p_write.write('Grid size: %d  %d  %d\n' %(NX,NY,NZ))
 del temp1, temp2, temp3
 
 # dX, dY, dZ
@@ -176,12 +186,14 @@ temp1 = par_f.readline()
 temp2 = temp1.split('-')
 temp3 = [int(item) for item in temp2[0].split()]
 dx,dy,dz = temp3[0],temp3[1],temp3[2]
+p_write.write('Grid block size: %d  %d  %d\n' %(dx,dy,dz))
 del temp1, temp2, temp3
 
 # Number of injectors
 temp1 = par_f.readline()
 temp2 = temp1.split('-')
 num_inj = int(temp2[0])
+p_write.write('Number of injectors: %d\n' %(num_inj))
 del temp1, temp2
 
 # Injection locations
@@ -192,35 +204,41 @@ for i in range(num_inj):
     inj_x.append(int(temp2[0]))
     inj_y.append(int(temp2[1]))
     inj_z.append(int(temp2[2]))
+    p_write.write('%d  %d  %d\n' %(int(temp2[0]),int(temp2[1]),int(temp2[2])))
 
 # Permeability file
 temp1 = par_f.readline()
 temp2 = temp1.split('-')
 perm_file = temp2[0].strip()
+p_write.write('Perm file: %s\n' %(perm_file))
 del temp1, temp2
 
 # Porosity file
 temp1 = par_f.readline()
 temp2 = temp1.split('-')
 por_file = temp2[0].strip()
+p_write.write('Porosity file: %s\n' %(por_file))
 del temp1, temp2
 
-# Initial pressure file
+# Depth file
 temp1 = par_f.readline()
 temp2 = temp1.split('-')
 pres_file = temp2[0].strip()
+p_write.write('Depth file: %s\n' %(pres_file))
 del temp1, temp2
 
 # ************ Fluid Properties *******************
+p_write.write(' *********** Fluid Properties ***********\n')
 # Relative permeability file
 temp1 = par_f.readline()
 temp2 = temp1.split('-')
 rel_perm_f = temp2[0].strip()
+p_write.write('Rel perm file: %s\n' %(rel_perm_f))
 rp_f = open(rel_perm_f,'r')
 temp1 = rp_f.readline()
 temp2 = temp1.split('-')
 temp3 = temp2[0].split()
-kr10,kr20 = float(temp3[0]), float(temp3[1])
+krw0,krg0 = float(temp3[0]), float(temp3[1])
 temp1 = rp_f.readline()
 temp2 = temp1.split('-')
 temp3 = temp2[0].split()
@@ -228,7 +246,7 @@ n1,n2 = float(temp3[0]), float(temp3[1])
 temp1 = rp_f.readline()
 temp2 = temp1.split('-')
 temp3 = temp2[0].split()
-S1r,S2r = float(temp3[0]), float(temp3[1])
+Swr,Sgr = float(temp3[0]), float(temp3[1])
 rp_f.close()
 
 rel_perms = rel_perm(rel_perm_f)
@@ -237,32 +255,41 @@ rel_perms = rel_perm(rel_perm_f)
 temp1 = par_f.readline()
 temp2 = temp1.split('-')
 brine_den = float(temp2[0])
+p_write.write('Brine density: %.2f\n' %(brine_den))
 temp1 = par_f.readline()
 temp2 = temp1.split('-')
 co2_den = float(temp2[0])
+p_write.write('CO2 density: %.2f\n' %(co2_den))
 temp1 = par_f.readline()
 temp2 = temp1.split('-')
 brine_visc = float(temp2[0])
+p_write.write('Brine viscosity: %.2f\n' %(brine_visc))
 temp1 = par_f.readline()
 temp2 = temp1.split('-')
 co2_visc = float(temp2[0])
+p_write.write('CO2 viscosity: %.2f\n' %(co2_visc))
 
 # **************** Recurrent data ****************
 temp1 = par_f.readline()
 temp2 = temp1.split('-')
 total_days = int(temp2[0])
+p_write.write('Total simulation time: %d days\n' %(total_days))
 temp1 = par_f.readline()
 temp2 = temp1.split('-')
 vol_rate = float(temp2[0])
+p_write.write('Volumetric injection rate: %.2f m3/day\n' %(vol_rate))
 temp1 = par_f.readline()
 temp2 = temp1.split('-')
 num_models = int(temp2[0])
+p_write.write('Number of models: %d\n' %(num_models))
 temp1 = par_f.readline()
 temp2 = temp1.split('-')
 reporting_intervals = int(temp2[0])
+p_write.write('Reporting intervals: %d days\n' %(reporting_intervals))
 del temp1, temp2
 
 par_f.close()
+p_write.close()
 
 ## ************************** End of data read ********************************
 
@@ -338,10 +365,7 @@ for models in range(num_models):
         for particle in range(N_inj_rate):
             for inj in range(num_inj):
                 carbon_count[inj_z[inj]-1][inj_y[inj]-1][inj_x[inj]-1] = carbon_count[inj_z[inj]-1][inj_y[inj]-1][inj_x[inj]-1] + 1
-
-            num_nonzero = np.where(np.array(carbon_count)>0)
-            for location in range(len(num_nonzero[0])):
-                x,y,z = num_nonzero[2][location], num_nonzero[1][location], num_nonzero[0][location]
+                x,y,z = inj_x[inj]-1,inj_y[inj]-1,inj_z[inj]-1
                 go_back=1
                 occupy = [[[0 for i in range(NX)] for j in range(NY)] for k in range(NZ)]
                 while (go_back==1):
