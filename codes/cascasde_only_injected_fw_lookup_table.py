@@ -4,7 +4,7 @@
 #               The BL velocity is only calculated once, and then put in a look-up table.
 #               Only injected particles are moved at every time step.
 #
-# Change:       Tr = [N_(co_2 )+ v_BL + K_abs]
+# Change:       Tr = [N_(co_2 )+ v_BL + K_abs + depth]
 #
 # Author:       Sayantan
 #
@@ -56,13 +56,8 @@ def rel_perm(fname):
         rel_perm_table[2].append(kr)
     return(rel_perm_table)
 
-def front_saturation(rel_perm_table,perm,del_rho,v_macro,mu_g,mu_w):
+def front_saturation(rel_perm_table,mu_g,mu_w):
     import math, numpy as np
-    del_rho = del_rho*16.018
-    v_macro = v_macro/(3600*24*3.28084)
-    perm = perm*9.8*(10**(-16))
-    mu_g = mu_g*0.001
-    mu_w = mu_w*0.001
     front_satn = [0 for i in range(2001)]
     counter=0
     for d_sin_alpha in range(-1000,1001):
@@ -74,7 +69,7 @@ def front_saturation(rel_perm_table,perm,del_rho,v_macro,mu_g,mu_w):
             if krg==0:
                 f_g=0
             else:
-                f_g = (1-krw*perm*del_rho*9.8*d_sin_alpha/1000.0/(v_macro*mu_w))/(1+krw*mu_g/krg/mu_w)
+                f_g = 1/(1+krw*mu_g/krg/mu_w)
             frac_flow[0].append(satn)
             frac_flow[1].append(f_g)
         dfg_dSg = [[],[]]
@@ -90,13 +85,8 @@ def front_saturation(rel_perm_table,perm,del_rho,v_macro,mu_g,mu_w):
                 break
     return(front_satn)
 
-def BL_velocity(rel_perm_table,perm,del_rho,v_macro,mu_g,mu_w,sin_alpha,sat,front_check,Sgr):
+def BL_velocity(rel_perm_table,mu_g,mu_w,sat,front_check,Sgr):
     import math
-    del_rho = del_rho*16.018
-    v_macro = v_macro/(3600*24*3.28084)
-    perm = perm*9.8*(10**(-16))
-    mu_g = mu_g*0.001
-    mu_w = mu_w*0.001
     frac_flow = [[],[]]
     if sat>0.99:
         sat=0.99
@@ -108,7 +98,7 @@ def BL_velocity(rel_perm_table,perm,del_rho,v_macro,mu_g,mu_w,sin_alpha,sat,fron
             f_g1=0
         else:
             krw = rel_perm_table[2][rel_perm_table[0].index(round(1-satn,3))-1]
-            f_g1 = (1-krw*perm*del_rho*9.8*sin_alpha)/(1+krw*mu_g/krg/mu_w)
+            f_g1 = 1/(1+krw*mu_g/krg/mu_w)
         slope = f_g1/(satn-Sgr)
     else:
         satn = sat+0.01
@@ -117,7 +107,7 @@ def BL_velocity(rel_perm_table,perm,del_rho,v_macro,mu_g,mu_w,sin_alpha,sat,fron
             f_g1=0
         else:
             krw = rel_perm_table[2][rel_perm_table[0].index(round(1-satn,3))-1]
-            f_g1 = (1-krw*perm*del_rho*9.8*sin_alpha)/(1+krw*mu_g/krg/mu_w)
+            f_g1 = 1/(1+krw*mu_g/krg/mu_w)
 
         satn = sat-0.01
         krg = rel_perm_table[1][rel_perm_table[0].index(round(satn,3))]
@@ -125,7 +115,7 @@ def BL_velocity(rel_perm_table,perm,del_rho,v_macro,mu_g,mu_w,sin_alpha,sat,fron
             f_g2=0
         else:
             krw = rel_perm_table[2][rel_perm_table[0].index(round(1-satn,3))-1]
-            f_g2 = (1-krw*perm*del_rho*9.8*sin_alpha)/(1+krw*mu_g/krg/mu_w)
+            f_g2 = 1/(1+krw*mu_g/krg/mu_w)
 
         slope = (f_g1-f_g2)/0.02
     return(slope)
@@ -391,36 +381,22 @@ for models in range(num_models):
     v_macro_z = vol_rate/(dx*dy)
 
     # **************************** Front saturation *****************************
-    front_sat = [[0] for i in range(3)]
+
     mean_perm = np.mean(np.mean(np.mean(perms)))
-    front_sat[0] = front_saturation(rel_perms,mean_perm,co2_den-brine_den,v_macro_x,co2_visc,brine_visc)
-    front_sat[1] = front_saturation(rel_perms,mean_perm,co2_den-brine_den,v_macro_y,co2_visc,brine_visc)
-    front_sat[2] = front_saturation(rel_perms,mean_perm,co2_den-brine_den,v_macro_z,co2_visc,brine_visc)
+    front_sat = front_saturation(rel_perms,co2_visc,brine_visc)
     print 'Done calculating front saturations'
 
     # ********************* Create Fw lookup table ****************************
-    fg_lookup = [[[0 for i in range(2001)] for j in range(1001)] for k in range(3)]
+    fg_lookup = [0 for j in range(1001)]
     start_time2 = time.clock()
     for gas_sat in range(1001):
         if gas_sat/1000.0>Sgr:
-            for sin_alpha in range(-1000,1001):
-                if (gas_sat/1000)<front_sat[0][int(sin_alpha)+1000]:
-                    front_check=1
-                else:
-                    front_check=0
-                fg_lookup[0][gas_sat][1000+sin_alpha] = BL_velocity(rel_perms,mean_perm,brine_den-co2_den,v_macro_x,co2_visc,brine_visc,sin_alpha/1000.0,gas_sat/1000.0,front_check,Sgr)
+            if (gas_sat/1000)<front_sat[gas_sat]:
+                front_check=1
+            else:
+                front_check=0
+            fg_lookup[gas_sat] = BL_velocity(rel_perms,co2_visc,brine_visc,gas_sat/1000.0,front_check,Sgr)
 
-                if (gas_sat/1000)<front_sat[1][int(sin_alpha)+1000]:
-                    front_check=1
-                else:
-                    front_check=0
-                fg_lookup[1][gas_sat][1000+sin_alpha] = BL_velocity(rel_perms,mean_perm,brine_den-co2_den,v_macro_y,co2_visc,brine_visc,sin_alpha/1000.0,gas_sat/1000.0,front_check,Sgr)
-
-                if (gas_sat/1000)<front_sat[2][int(sin_alpha)+1000]:
-                    front_check=1
-                else:
-                    front_check=0
-                fg_lookup[2][gas_sat][1000+sin_alpha] = BL_velocity(rel_perms,mean_perm,brine_den-co2_den,v_macro_z,co2_visc,brine_visc,sin_alpha/1000.0,gas_sat/1000.0,front_check,Sgr)
     print 'Done creating Fg lookup table in ', time.clock()-start_time2, ' secs.'
 
 
@@ -450,7 +426,7 @@ for models in range(num_models):
                         if satn<Sgr or check_passed[z][y][x+1]==1:
                             Tr[1] = 0
                         else:
-                            velocity = fg_lookup[0][int(satn*1000)][int(sin_alpha*1000)+1000]
+                            velocity = fg_lookup[int(satn*1000)]
                             Tr[1] = (carbon_count[z][y][x]-carbon_count[z][y][x+1])/accomodation[z][y][x] + velocity/v_macro_x + avg_perm/max(max(max(perms)))
                     elif x==NX-1:
                         satn = float(carbon_count[z][y][x])/accomodation[z][y][x]
@@ -461,8 +437,8 @@ for models in range(num_models):
                         if satn<Sgr:
                             Tr[1] = 0
                         else:
-                            velocity = fg_lookup[0][int(satn*1000)][int(sin_alpha*1000)+1000]
-                            Tr[1] = (carbon_count[z][y][x-1]-carbon_count[z][y][x])/accomodation[z][y][x] + velocity/v_macro_x + avg_perm/max(max(max(perms)))
+                            velocity = fg_lookup[int(satn*1000)]
+                            Tr[1] = (carbon_count[z][y][x-1]-carbon_count[z][y][x])/accomodation[z][y][x] + velocity/v_macro_x + avg_perm/max(max(max(perms))) + sin_alpha
 
                     # negative X-direction
                     if x!=0:
@@ -474,8 +450,8 @@ for models in range(num_models):
                         if satn<Sgr or check_passed[z][y][x-1]==1:
                             Tr[2] = 0
                         else:
-                            velocity = fg_lookup[0][int(satn*1000)][int(sin_alpha*1000)+1000]
-                            Tr[2] = (carbon_count[z][y][x]-carbon_count[z][y][x-1])/accomodation[z][y][x] + velocity/v_macro_x + avg_perm/max(max(max(perms)))
+                            velocity = fg_lookup[int(satn*1000)]
+                            Tr[2] = (carbon_count[z][y][x]-carbon_count[z][y][x-1])/accomodation[z][y][x] + velocity/v_macro_x + avg_perm/max(max(max(perms))) + sin_alpha
                     elif x==0:
                         satn = float(carbon_count[z][y][x])/accomodation[z][y][x]
                         if satn>0.999:
@@ -485,8 +461,8 @@ for models in range(num_models):
                         if satn<Sgr:
                             Tr[2] = 0
                         else:
-                            velocity = fg_lookup[0][int(satn*1000)][int(sin_alpha*1000)+1000]
-                            Tr[2] = (carbon_count[z][y][x+1]-carbon_count[z][y][x])/accomodation[z][y][x] + velocity/v_macro_x + avg_perm/max(max(max(perms)))
+                            velocity = fg_lookup[int(satn*1000)]
+                            Tr[2] = (carbon_count[z][y][x+1]-carbon_count[z][y][x])/accomodation[z][y][x] + velocity/v_macro_x + avg_perm/max(max(max(perms))) + sin_alpha
 
                     # positive Y-direction
                     if NY==1:
@@ -500,8 +476,8 @@ for models in range(num_models):
                         if satn<Sgr or check_passed[z][y+1][x]==1:
                             Tr[3] = 0
                         else:
-                            velocity = fg_lookup[1][int(satn*1000)][int(sin_alpha*1000)+1000]
-                            Tr[3] = (carbon_count[z][y][x]-carbon_count[z][y+1][x])/accomodation[z][y][x] + velocity/v_macro_x + avg_perm/max(max(max(perms)))
+                            velocity = fg_lookup[int(satn*1000)]
+                            Tr[3] = (carbon_count[z][y][x]-carbon_count[z][y+1][x])/accomodation[z][y][x] + velocity/v_macro_y + avg_perm/max(max(max(perms))) + sin_alpha
                     elif y==NY-1:
                         satn = float(carbon_count[z][y][x])/accomodation[z][y][x]
                         if satn>0.999:
@@ -511,8 +487,8 @@ for models in range(num_models):
                         if satn<Sgr:
                             Tr[3] = 0
                         else:
-                            velocity = fg_lookup[1][int(satn*1000)][int(sin_alpha*1000)+1000]
-                            Tr[3] = (carbon_count[z][y-1][x]-carbon_count[z][y][x])/accomodation[z][y][x] + velocity/v_macro_x + avg_perm/max(max(max(perms)))
+                            velocity = fg_lookup[int(satn*1000)]
+                            Tr[3] = (carbon_count[z][y-1][x]-carbon_count[z][y][x])/accomodation[z][y][x] + velocity/v_macro_y + avg_perm/max(max(max(perms))) + sin_alpha
 
                     # negative Y-direction
                     if NY==1:
@@ -526,8 +502,8 @@ for models in range(num_models):
                         if satn<Sgr or check_passed[z][y-1][x]==1:
                             Tr[4] = 0
                         else:
-                            velocity = fg_lookup[1][int(satn*1000)][int(sin_alpha*1000)+1000]
-                            Tr[4] = (carbon_count[z][y][x]-carbon_count[z][y-1][x])/accomodation[z][y][x] + velocity/v_macro_x + avg_perm/max(max(max(perms)))
+                            velocity = fg_lookup[int(satn*1000)]
+                            Tr[4] = (carbon_count[z][y][x]-carbon_count[z][y-1][x])/accomodation[z][y][x] + velocity/v_macro_y + avg_perm/max(max(max(perms))) + sin_alpha
                     elif y==0:
                         satn = float(carbon_count[z][y][x])/accomodation[z][y][x]
                         if satn>0.999:
@@ -537,8 +513,8 @@ for models in range(num_models):
                         if satn<Sgr:
                             Tr[4] = 0
                         else:
-                            velocity = fg_lookup[1][int(satn*1000)][int(sin_alpha*1000)+1000]
-                            Tr[4] = (carbon_count[z][y+1][x]-carbon_count[z][y][x])/accomodation[z][y][x] + velocity/v_macro_x + avg_perm/max(max(max(perms)))
+                            velocity = fg_lookup[int(satn*1000)]
+                            Tr[4] = (carbon_count[z][y+1][x]-carbon_count[z][y][x])/accomodation[z][y][x] + velocity/v_macro_y + avg_perm/max(max(max(perms))) + sin_alpha
 
                     # positive Z-direction
                     if NZ==1:
@@ -554,8 +530,8 @@ for models in range(num_models):
                         if satn<Sgr or check_passed[z+1][y][x]==1:
                             Tr[5] = 0
                         else:
-                            velocity = fg_lookup[2][int(satn*1000)][int(sin_alpha*1000)+1000]
-                            Tr[5] = (carbon_count[z][y][x]-carbon_count[z+1][y][x])/accomodation[z][y][x] + velocity/v_macro_x + avg_perm/max(max(max(perms)))
+                            velocity = fg_lookup[int(satn*1000)]
+                            Tr[5] = (carbon_count[z][y][x]-carbon_count[z+1][y][x])/accomodation[z][y][x] + velocity/v_macro_z + avg_perm/max(max(max(perms))) + sin_alpha
 
 
                     # negative Z-direction
@@ -572,8 +548,8 @@ for models in range(num_models):
                         if satn<Sgr or check_passed[z-1][y][x]==1:
                             Tr[6] = 0
                         else:
-                            velocity = fg_lookup[2][int(satn*1000)][int(sin_alpha*1000)+1000]
-                            Tr[6] = (carbon_count[z][y][x]-carbon_count[z-1][y][x])/accomodation[z][y][x] + velocity/v_macro_x + avg_perm/max(max(max(perms)))
+                            velocity = fg_lookup[int(satn*1000)]
+                            Tr[6] = (carbon_count[z][y][x]-carbon_count[z-1][y][x])/accomodation[z][y][x] + velocity/v_macro_z + avg_perm/max(max(max(perms))) + sin_alpha
 
                     for i in range(7):
                         if Tr[i]<0:
