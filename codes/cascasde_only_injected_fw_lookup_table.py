@@ -2,7 +2,7 @@
 # Name:         Random Walker with BL velocities, single-phase flow
 # Purpose:      Use Buckley-Leverett theory to estimate phase velocities, and use it in the transtion probability.
 #               The BL velocity is only calculated once, and then put in a look-up table.
-#               All locations with non-zero saturation is moved at every time step.
+#               Only injected particles are moved at every time step.
 #
 # Change:       Tr = [N_(co_2 )+ v_BL + K_abs]
 #
@@ -365,7 +365,7 @@ for models in range(num_models):
         for j in range(NY):
             for k in range(NX):
                 temp1 = data_f.readline().split()
-                accomodation[i][j][k] = int(200*float(temp1[models]))
+                accomodation[i][j][k] = int(50*float(temp1[models]))
                 if accomodation[i][j][k]<1:
                     accomodation[i][j][k]=1
                 total_particles = total_particles + accomodation[i][j][k]
@@ -377,8 +377,7 @@ for models in range(num_models):
 
     # Volumetric calculations
     N_inj_rate = int(round(vol_rate * total_particles/total_PV))
-    print 'Injection rate is ',N_inj_rate
-    print 'This will flood in ',total_particles/N_inj_rate, ' days.'
+    print 'Injection rate is ',N_inj_rate, '. This should inject 1 PV in ',total_particles/N_inj_rate,' days.'
 
     question = raw_input('Continue?')
 
@@ -433,11 +432,7 @@ for models in range(num_models):
             for inj in range(num_inj):
                 carbon_count[inj_z[inj]-1][inj_y[inj]-1][inj_x[inj]-1] = carbon_count[inj_z[inj]-1][inj_y[inj]-1][inj_x[inj]-1] + 1
 
-            num_nonzero = np.where(np.array(carbon_count)/np.array(accomodation)>Sgr)
-#            print len(num_nonzero[0])
-
-            for location in range(len(num_nonzero[0])):
-                x,y,z = num_nonzero[2][location], num_nonzero[1][location], num_nonzero[0][location]
+                x,y,z = inj_x[inj]-1,inj_y[inj]-1,inj_z[inj]-1
                 go_back=1
                 check_passed = [[[0 for i in range(NX)] for j in range(NY)] for k in range(NZ)]
                 while (go_back==1):
@@ -631,7 +626,6 @@ for models in range(num_models):
     print 'Done with model ',models+1,' in',time.clock()-start_time1, ' secs.'
     p_write = open('../results/' + results_file +'/parameters.txt','a')
     p_write.write('Simulation completed for model %d in %.2f secs' %(models+1,time.clock()-start_time1))
-
     report(models+1,NX,NY,NZ)
 p_write.close()
 
