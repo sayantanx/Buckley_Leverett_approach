@@ -1,0 +1,17 @@
+Grid size: 100  1  20
+Grid block size: 5  5  5
+Number of injectors: 1
+50  1  15
+Perm file: ../data/perms_vertical.txt
+Porosity file: ../data/por_vertical.txt
+Depth file: ../data/depth_vertical.txt
+ *********** Fluid Properties ***********
+Rel perm file: ../data/rel_perm.dat
+Brine density: 65.00
+CO2 density: 49.00
+Brine viscosity: 1.00
+CO2 viscosity: 0.10
+Total simulation time: 1000 days
+Volumetric injection rate: 10.00 m3/day
+Number of models: 1
+Reporting intervals: 50 days

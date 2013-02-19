@@ -1,17 +1,17 @@
-all_particles_fw_every_step2 - results file
-100 100 10  - NX,NY,NZ
+all_particles_fw_every_step_areal - results file
+100 100 1  - NX,NY,NZ
 5 5 5 - dx,dy,dz
 1  - Number of injection locations
-50	50	7
-../data/perms.txt  - permeability file
-../data/por.txt - porosity file
-../data/depth.txt - depth file
+50	50	1
+../data/perms_areal.txt  - permeability file
+../data/por_areal.txt - porosity file
+../data/depth_areal.txt - depth file
 ../data/rel_perm.dat - relative permeability file
 65 - brine density
 49 - co2 density
 1 - brine viscosity
 0.1 - co2 viscosity
-500 - number of injection steps
+1000 - number of injection steps
 10 - injection rate per day
 1 - number of models
 50 - reporting time intervals
